@@ -21,6 +21,9 @@ services:
       # Adresses internes utilisées par la pipeline (réseau Docker du compose).
       SONAR_HOST_URL: http://sonarqube:9000
       TEST_DATABASE_URL: postgresql://test:test@postgres-ci:5432/souverainrecrut_test
+      # Identifiant (namespace) Docker Hub : active l'étape de publication de la pipeline.
+      # Laissé vide, l'image est construite et scannée mais pas publiée.
+      DOCKERHUB_NAMESPACE: ${DOCKERHUB_NAMESPACE:-}
     # Accès au démon Docker de l'hôte (build, scan Trivy, push).
     # ATTENTION : accès au socket = droits root sur l'hôte. Acceptable pour un
     # TP en local, à ne pas reproduire tel quel en production.

@@ -1,10 +1,13 @@
 // Pipeline CI du backend SouverainRecrut.
 //
-// Étapes actuelles : installation, génération Prisma, tests + couverture,
-// analyse SonarQube + Quality Gate.
-// À venir (TP 3.6) : build de l'image Docker, scan Trivy, publication Docker Hub.
+// Étapes : installation, génération Prisma, tests + couverture, analyse SonarQube
+// + Quality Gate, build de l'image Docker, scan Trivy, publication sur Docker Hub.
 //
-// Prérequis Jenkins : credentials « sonar-token », serveur SonarQube nommé « sonar »
+// La publication n'a lieu que si tous les contrôles précédents sont verts, et seulement
+// quand DOCKERHUB_NAMESPACE est renseigné (sinon l'étape est ignorée).
+//
+// Prérequis Jenkins : credential « sonar-token », serveur SonarQube nommé « sonar »,
+// credential « dockerhub » (identifiant + Access Token) pour la publication
 // (voir integration-continue/README.md).
 
 pipeline {
@@ -24,6 +27,10 @@ pipeline {
         // Base PostgreSQL jetable du compose « outils » (service postgres-ci).
         DATABASE_URL = "${env.TEST_DATABASE_URL}"
         CI = 'true'
+
+        IMAGE_NAME = 'souverainrecrut-backend'
+        // Version figée de Trivy (pas de « latest »).
+        TRIVY = 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache aquasec/trivy:0.76.2'
     }
 
     stages {
@@ -80,6 +87,71 @@ pipeline {
                               -Dsonar.token="$SONAR_AUTH_TOKEN"
                         '''
                     }
+                }
+            }
+        }
+
+        stage('Image Docker') {
+            steps {
+                script {
+                    // Tag traçable : version applicative + commit (ex. 1.0.0-21c7b79). Jamais « latest ».
+                    def version = sh(returnStdout: true, script: "node -p \"require('./backend/package.json').version\"").trim()
+                    def commit = sh(returnStdout: true, script: 'git rev-parse --short=7 HEAD').trim()
+                    env.IMAGE_TAG = "${version}-${commit}"
+                    env.IMAGE_REF = "${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                }
+                sh '''
+                    docker build \
+                      --label org.opencontainers.image.version="$IMAGE_TAG" \
+                      --label org.opencontainers.image.revision="$(git rev-parse HEAD)" \
+                      -t "$IMAGE_REF" backend
+                    docker image ls "$IMAGE_NAME"
+                '''
+            }
+        }
+
+        stage('Scan Trivy') {
+            steps {
+                sh '''
+                    # 1. Rapport complet (JSON), archivé avec le build.
+                    $TRIVY image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+                      --no-progress --quiet --format json "$IMAGE_REF" > trivy-report.json
+
+                    # 2. Affichage lisible dans les logs (HIGH et CRITICAL corrigeables).
+                    $TRIVY image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+                      --no-progress "$IMAGE_REF"
+
+                    # 3. Barrière : échec s'il reste une faille CRITICAL pour laquelle un correctif existe.
+                    $TRIVY image --scanners vuln --severity CRITICAL --ignore-unfixed \
+                      --exit-code 1 --no-progress "$IMAGE_REF"
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Publication Docker Hub') {
+            // Ignorée tant que DOCKERHUB_NAMESPACE (compte Docker Hub) n'est pas renseigné.
+            when { expression { return env.DOCKERHUB_NAMESPACE?.trim() } }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DH_USER',
+                    passwordVariable: 'DH_TOKEN')]) {
+                    sh '''
+                        REMOTE_REF="$DOCKERHUB_NAMESPACE/$IMAGE_NAME:$IMAGE_TAG"
+                        echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+                        docker tag "$IMAGE_REF" "$REMOTE_REF"
+                        docker push "$REMOTE_REF"
+                    '''
+                }
+            }
+            post {
+                always {
+                    sh 'docker logout || true'
                 }
             }
         }

@@ -1,0 +1,26 @@
+# Exclus du contexte de build : ni secrets, ni artefacts, ni fichiers inutiles à l'image.
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Dépendances et sorties de build (régénérées dans l'image)
+node_modules
+dist
+coverage
+
+# Tests et leur configuration
+tests
+jest.config.js
+tsconfig.test.json
+
+# Dépôt et outillage
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+.vscode
+.idea
+*.log
