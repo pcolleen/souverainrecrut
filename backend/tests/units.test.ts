@@ -1,8 +1,23 @@
 import { Request, Response } from "express";
 
+import { AppError } from "../src/errors/app.error";
 import { errorMiddleware } from "../src/middlewares/error.middleware";
 import { authorize } from "../src/middlewares/authorize.middleware";
 import { buildPaginationMeta, getPagination } from "../src/utils/pagination";
+
+describe("AppError", () => {
+  it("est une erreur métier de statut 500 par défaut", () => {
+    const error = new AppError("Oups");
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.statusCode).toBe(500);
+    expect(error.isOperational).toBe(true);
+  });
+
+  it("conserve le statut HTTP fourni", () => {
+    expect(new AppError("Introuvable", 404).statusCode).toBe(404);
+  });
+});
 
 describe("getPagination", () => {
   it("applique les valeurs par défaut", () => {

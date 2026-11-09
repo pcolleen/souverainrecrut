@@ -6,7 +6,7 @@ export class UserRepository {
   /**
    * Retourne les utilisateurs paginés.
    */
-  async findAll(skip = 0, take = 10) {
+  async findAll(skip: number, take: number) {
     const [items, total] = await Promise.all([
       prisma.user.findMany({
         skip,

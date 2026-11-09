@@ -1,8 +1,4 @@
-import {
-  Application,
-  ApplicationStatus,
-  Prisma,
-} from "@prisma/client";
+import { Application, Prisma } from "@prisma/client";
 
 import { prisma } from "../config/prisma";
 
@@ -10,7 +6,7 @@ export class ApplicationRepository {
   /**
    * Retourne les candidatures paginées.
    */
-  async findAll(skip = 0, take = 10) {
+  async findAll(skip: number, take: number) {
     const [items, total] = await Promise.all([
       prisma.application.findMany({
         skip,
@@ -75,27 +71,6 @@ export class ApplicationRepository {
         id,
       },
       data,
-      include: {
-        candidate: true,
-        job: true,
-      },
-    });
-  }
-
-  /**
-   * Met à jour uniquement le statut.
-   */
-  async updateStatus(
-    id: string,
-    status: ApplicationStatus
-  ): Promise<Application> {
-    return prisma.application.update({
-      where: {
-        id,
-      },
-      data: {
-        status,
-      },
       include: {
         candidate: true,
         job: true,

@@ -13,7 +13,7 @@ export class JobService {
   /**
    * Retourne les offres d'emploi paginées.
    */
-  async getAll(skip = 0, take = 10) {
+  async getAll(skip: number, take: number) {
     return this.repository.findAll(skip, take);
   }
 

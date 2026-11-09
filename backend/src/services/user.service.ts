@@ -14,7 +14,7 @@ export class UserService {
   /**
    * Retourne les utilisateurs paginés.
    */
-  async getAll(skip = 0, take = 10) {
+  async getAll(skip: number, take: number) {
     return this.repository.findAll(skip, take);
   }
 

@@ -1,7 +1,4 @@
-import {
-  ApplicationStatus,
-  Prisma,
-} from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { ApplicationRepository } from "../repositories/application.repository";
 import { AppError } from "../errors/app.error";
@@ -16,7 +13,7 @@ export class ApplicationService {
   /**
    * Retourne les candidatures paginées.
    */
-  async getAll(skip = 0, take = 10) {
+  async getAll(skip: number, take: number) {
     return this.repository.findAll(skip, take);
   }
 
@@ -50,18 +47,6 @@ export class ApplicationService {
     await this.getById(id);
 
     return this.repository.update(id, data);
-  }
-
-  /**
-   * Met à jour le statut d'une candidature.
-   */
-  async updateStatus(
-    id: string,
-    status: ApplicationStatus
-  ) {
-    await this.getById(id);
-
-    return this.repository.updateStatus(id, status);
   }
 
   /**

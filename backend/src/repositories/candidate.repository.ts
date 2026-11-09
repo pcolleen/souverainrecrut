@@ -6,7 +6,7 @@ export class CandidateRepository {
   /**
    * Retourne les candidats paginés.
    */
-  async findAll(skip = 0, take = 10) {
+  async findAll(skip: number, take: number) {
     const [items, total] = await Promise.all([
       prisma.candidate.findMany({
         skip,

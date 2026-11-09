@@ -13,7 +13,7 @@ export class CandidateService {
   /**
    * Retourne les candidats paginés.
    */
-  async getAll(skip = 0, take = 10) {
+  async getAll(skip: number, take: number) {
     return this.repository.findAll(skip, take);
   }
 
