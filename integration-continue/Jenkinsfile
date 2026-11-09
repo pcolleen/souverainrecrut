@@ -7,7 +7,7 @@
 // quand DOCKERHUB_NAMESPACE est renseigné (sinon l'étape est ignorée).
 //
 // Prérequis Jenkins : credential « sonar-token », serveur SonarQube nommé « sonar »,
-// credential « docker_hub » (identifiant + Access Token) pour la publication
+// credential « docker_hub » (type Secret text : l'Access Token Docker Hub) pour la publication
 // (voir integration-continue/README.md).
 
 pipeline {
@@ -137,13 +137,12 @@ pipeline {
             // Ignorée tant que DOCKERHUB_NAMESPACE (compte Docker Hub) n'est pas renseigné.
             when { expression { return env.DOCKERHUB_NAMESPACE?.trim() } }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker_hub',
-                    usernameVariable: 'DH_USER',
-                    passwordVariable: 'DH_TOKEN')]) {
+                // Le token est le seul secret (credential « Secret text ») ; l'identifiant Docker Hub
+                // n'est pas secret : c'est DOCKERHUB_NAMESPACE.
+                withCredentials([string(credentialsId: 'docker_hub', variable: 'DH_TOKEN')]) {
                     sh '''
                         REMOTE_REF="$DOCKERHUB_NAMESPACE/$IMAGE_NAME:$IMAGE_TAG"
-                        echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+                        echo "$DH_TOKEN" | docker login -u "$DOCKERHUB_NAMESPACE" --password-stdin
                         docker tag "$IMAGE_REF" "$REMOTE_REF"
                         docker push "$REMOTE_REF"
                     '''
