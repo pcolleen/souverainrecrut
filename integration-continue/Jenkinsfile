@@ -1,0 +1,92 @@
+// Pipeline CI du backend SouverainRecrut.
+//
+// Étapes actuelles : installation, génération Prisma, tests + couverture,
+// analyse SonarQube + Quality Gate.
+// À venir (TP 3.6) : build de l'image Docker, scan Trivy, publication Docker Hub.
+//
+// Prérequis Jenkins : credentials « sonar-token », serveur SonarQube nommé « sonar »
+// (voir integration-continue/README.md).
+
+pipeline {
+    agent any
+
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
+    // Scrutation de la branche Dev toutes les 5 minutes (Jenkins local : pas de webhook GitHub).
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
+    environment {
+        // Base PostgreSQL jetable du compose « outils » (service postgres-ci).
+        DATABASE_URL = "${env.TEST_DATABASE_URL}"
+        CI = 'true'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Installation') {
+            steps {
+                dir('backend') {
+                    sh 'node --version && npm --version'
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Prisma') {
+            steps {
+                dir('backend') {
+                    sh 'npx prisma generate'
+                }
+            }
+        }
+
+        stage('Tests') {
+            steps {
+                dir('backend') {
+                    // Applique les migrations sur la base de test, exécute les tests
+                    // et produit coverage/lcov.info.
+                    sh 'npm run test:coverage'
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'backend/coverage/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Analyse SonarQube') {
+            steps {
+                dir('backend') {
+                    // Injecte SONAR_HOST_URL et SONAR_AUTH_TOKEN (credential « sonar-token »).
+                    // Le scanner attend le Quality Gate (sonar.qualitygate.wait=true) :
+                    // un gate rouge fait échouer cette étape.
+                    withSonarQubeEnv('sonar') {
+                        sh '''
+                            sonar-scanner \
+                              -Dproject.settings=../integration-continue/sonar/sonar-project.properties \
+                              -Dsonar.projectBaseDir=. \
+                              -Dsonar.host.url="$SONAR_HOST_URL" \
+                              -Dsonar.token="$SONAR_AUTH_TOKEN"
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo 'Pipeline réussie.' }
+        failure { echo 'Pipeline en échec : consulter les logs de l\'étape en erreur.' }
+    }
+}

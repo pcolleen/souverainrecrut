@@ -1,0 +1,47 @@
+# Environnement de développement local (aucune installation de Node requise).
+#
+# Utilisation (depuis le dossier integration-continue/) :
+#   docker compose -f docker-compose.dev.yml run --rm node npm ci
+#   docker compose -f docker-compose.dev.yml run --rm node npx prisma generate
+#   docker compose -f docker-compose.dev.yml run --rm node npm test
+#
+# La base PostgreSQL est jetable et réservée aux tests locaux : les identifiants
+# ci-dessous ne sont utilisés nulle part ailleurs (aucun secret réel).
+
+name: souverainrecrut-dev
+
+services:
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: souverainrecrut-node-dev:22
+    working_dir: /app/backend
+    # Évite que les fichiers créés (node_modules, ...) appartiennent à root.
+    # Si ton UID/GID n'est pas 1000 : DEV_UID=$(id -u) DEV_GID=$(id -g) docker compose ...
+    user: "${DEV_UID:-1000}:${DEV_GID:-1000}"
+    environment:
+      HOME: /tmp
+      NODE_ENV: development
+      DATABASE_URL: postgresql://test:test@postgres:5432/souverainrecrut_test
+      JWT_SECRET: secret-de-test-local-uniquement
+    volumes:
+      # :Z requis sous SELinux (Fedora)
+      - ..:/app:Z
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: souverainrecrut_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d souverainrecrut_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql/data

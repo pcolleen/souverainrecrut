@@ -1,0 +1,105 @@
+# Outils de CI : Jenkins + SonarQube (+ leurs bases de données).
+#
+# Prérequis : copier .env.example vers .env et renseigner les valeurs.
+# Démarrage  : docker compose -f docker-compose.tools.yml --env-file .env up -d --build
+# Arrêt      : docker compose -f docker-compose.tools.yml down      (les données sont conservées)
+#
+# Accès : Jenkins http://localhost:8080 · SonarQube http://localhost:9000
+
+name: souverainrecrut-tools
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    image: souverainrecrut-jenkins:2.580.2
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Adresses internes utilisées par la pipeline (réseau Docker du compose).
+      SONAR_HOST_URL: http://sonarqube:9000
+      TEST_DATABASE_URL: postgresql://test:test@postgres-ci:5432/souverainrecrut_test
+    # Accès au démon Docker de l'hôte (build, scan Trivy, push).
+    # ATTENTION : accès au socket = droits root sur l'hôte. Acceptable pour un
+    # TP en local, à ne pas reproduire tel quel en production.
+    group_add:
+      - "${DOCKER_GID}"
+    security_opt:
+      - label=disable # SELinux (Fedora) bloquerait sinon l'accès au socket
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+      postgres-ci:
+        condition: service_healthy
+
+  sonarqube:
+    image: sonarqube:26.11.0.134175-community
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonarqube
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD}
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+      nproc: 8192
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  sonarqube-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sonarqube
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD}
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonarqube_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonarqube -d sonarqube"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Base jetable pour les tests de la pipeline (vidée à chaque exécution).
+  # Identifiants test/test : aucun secret réel.
+  postgres-ci:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: souverainrecrut_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d souverainrecrut_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  jenkins_home:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_db:
