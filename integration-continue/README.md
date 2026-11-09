@@ -72,7 +72,7 @@ ne se corrige qu'avec une montée de version majeure de Prisma, volontairement h
 ## Activer la publication sur Docker Hub
 
 1. Créer un compte sur hub.docker.com puis un token (*Account settings › Personal access tokens*, droits **Read & Write**).
-2. Jenkins › *Credentials* : ajouter un *Username with password* d'ID `dockerhub` (identifiant + token).
+2. Jenkins › *Credentials* : ajouter un *Username with password* d'ID `docker_hub` (identifiant + token).
 3. Renseigner `DOCKERHUB_NAMESPACE=<identifiant Docker Hub>` dans `integration-continue/.env`.
 4. Recréer Jenkins **quand aucun build ne tourne** : `docker compose -f docker-compose.tools.yml --env-file .env up -d`.
 

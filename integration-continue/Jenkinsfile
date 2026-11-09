@@ -7,7 +7,7 @@
 // quand DOCKERHUB_NAMESPACE est renseigné (sinon l'étape est ignorée).
 //
 // Prérequis Jenkins : credential « sonar-token », serveur SonarQube nommé « sonar »,
-// credential « dockerhub » (identifiant + Access Token) pour la publication
+// credential « docker_hub » (identifiant + Access Token) pour la publication
 // (voir integration-continue/README.md).
 
 pipeline {
@@ -138,7 +138,7 @@ pipeline {
             when { expression { return env.DOCKERHUB_NAMESPACE?.trim() } }
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
+                    credentialsId: 'docker_hub',
                     usernameVariable: 'DH_USER',
                     passwordVariable: 'DH_TOKEN')]) {
                     sh '''
